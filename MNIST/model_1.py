@@ -42,26 +42,65 @@ def random_mini_batches(X, Y, mini_batch_size=64):
 
     permutation = list(np.random.permutation(m))
     shuffled_X = X[permutation, :]
-    shuffled_Y = Y[permutation, :]
+    shuffled_Y = Y[permutation]
 
     num_complete_minibatches = math.floor(m / mini_batch_size)
     for k in range(0, num_complete_minibatches):
         mini_batch_X = shuffled_X[k * mini_batch_size: k * mini_batch_size + mini_batch_size, :]
-        mini_batch_Y = shuffled_Y[k * mini_batch_size: k * mini_batch_size + mini_batch_size, :]
+        mini_batch_Y = shuffled_Y[k * mini_batch_size: k * mini_batch_size + mini_batch_size]
         mini_batch = (mini_batch_X, mini_batch_Y)
         mini_batches.append(mini_batch)
     if m % mini_batch_size != 0:
         mini_batch_X = shuffled_X[num_complete_minibatches * mini_batch_size: m, :]
-        mini_batch_Y = shuffled_Y[num_complete_minibatches * mini_batch_size: m, :]
+        mini_batch_Y = shuffled_Y[num_complete_minibatches * mini_batch_size: m]
         mini_batch = (mini_batch_X, mini_batch_Y)
         mini_batches.append(mini_batch)
     return mini_batches
 
 
+def get_center_loss(features, labels, alpha, num_classes):
+    """获取center loss及center的更新op
+        features: Tensor,表征样本特征,一般使用某个fc层的输出,shape应该为[batch_size, feature_length].
+        labels: Tensor,表征样本label,非one-hot编码,shape应为[batch_size].
+        alpha: 0-1之间的数字,控制样本类别中心的学习率,细节参考原文.
+        num_classes: 整数,表明总共有多少个类别,网络分类输出有多少个神经元这里就取多少.
+    Return：
+        loss: Tensor,可与softmax loss相加作为总的loss进行优化.
+        centers_update_op: op,用于更新样本中心的op，在训练时需要同时运行该op，否则样本中心不会更新
+    """
+    # 获取特征的维数，例如256维
+    len_features = features.get_shape()[1]
+    # 建立一个Variable,shape为[num_classes, len_features]，用于存储整个网络的样本中心，
+    # 设置trainable=False是因为样本中心不是由梯度进行更新的
+    centers = tf.get_variable('centers', [num_classes, len_features], dtype=tf.float32,
+                              initializer=tf.constant_initializer(0), trainable=False)
+    # 将label展开为一维的，输入如果已经是一维的，则该动作其实无必要
+    labels = tf.reshape(labels, [-1])
+
+    # 根据样本label,获取mini-batch中每一个样本对应的中心值
+    centers_batch = tf.gather(centers, labels)
+    # 计算loss
+    loss = tf.div(tf.nn.l2_loss(features - centers_batch), int(len_features))
+    # 当前mini-batch的特征值与它们对应的中心值之间的差
+    diff = centers_batch - features
+    # 获取mini-batch中同一类别样本出现的次数,了解原理请参考原文公式(4)
+    unique_label, unique_idx, unique_count = tf.unique_with_counts(labels)
+    appear_times = tf.gather(unique_count, unique_idx)
+    appear_times = tf.reshape(appear_times, [-1, 1])
+
+    diff = diff / tf.cast((1 + appear_times), tf.float32)
+    diff = alpha * diff
+
+    centers_update_op = tf.scatter_sub(centers, labels, diff)
+    return loss, centers_update_op
+
+
 def model(trX, trY, teX, teY, lr=0.01, epoches=200, minibatch_size=64, drop_prob=.2):
     X = tf.placeholder(tf.float32, shape=[None, 28 * 28])
     XX = tf.reshape(X, shape=[-1, 28, 28, 1])
-    Y = tf.placeholder(tf.float32, shape=[None, 10])
+    Y = tf.placeholder(tf.int32, shape=[None, ])
+    YY = tf.one_hot(Y, 10, on_value=1, off_value=None, axis=1)
+    print(YY)
     dp = tf.placeholder(tf.float32)
     global_step = tf.Variable(0, trainable=False)
 
@@ -88,17 +127,25 @@ def model(trX, trY, teX, teY, lr=0.01, epoches=200, minibatch_size=64, drop_prob
 
     ZL = tf.layers.dense(fc2, 10, activation=None)
 
-    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=ZL, labels=Y))
+    # loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=ZL, labels=Y))
 
     learning_rate = tf.train.exponential_decay(lr,
                                                global_step=global_step,
                                                decay_steps=10, decay_rate=0.9)
     learning_rate = tf.maximum(learning_rate, .005)
-    train_op = tf.train.AdamOptimizer(learning_rate).minimize(loss, global_step=global_step)
+
+    with tf.variable_scope('loss_scope'):
+        centerloss, centers_update_op = get_center_loss(fc2, Y, 0.5, 10)
+        # self.loss = tf.losses.softmax_cross_entropy(onehot_labels=util.makeonehot(self.y, self.CLASSNUM), logits=self.score)
+        # lambda则0.1-0.0001之间不等
+        loss = tf.losses.sparse_softmax_cross_entropy(labels=Y, logits=ZL) + 0.05 * centerloss
+    with tf.control_dependencies([centers_update_op]):
+        train_op = tf.train.MomentumOptimizer(0.001, 0.9).minimize(loss)
+        # train_op = tf.train.AdamOptimizer(learning_rate).minimize(loss, global_step=global_step)
 
     predict_op = tf.argmax(ZL, 1, name='predict')
     print(predict_op)
-    correct_prediction = tf.equal(predict_op, tf.argmax(Y, 1))
+    correct_prediction = tf.equal(predict_op, tf.argmax(YY, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
     add_global = global_step.assign_add(1)
@@ -146,8 +193,8 @@ def predict():
         result.to_csv(root_dir + 'result.csv')
 
 
-root_dir = 'F:/dataSets/kaggle/MNIST/'
-# root_dir = 'C:/Users/syh03/Desktop/Kaggle/MNIST/data'
+# root_dir = 'F:/dataSets/kaggle/MNIST/'
+root_dir = 'C:/Users/syh03/Desktop/Kaggle/MNIST/data/'
 train_dir = root_dir + 'train.csv'
 test_dir = root_dir + 'test.csv'
 
@@ -159,9 +206,9 @@ Y_data = np.array(data.iloc[:, 0].values, dtype=np.int32)
 pre_data = pd.read_csv(test_dir)
 preX = np.array(pre_data.values, dtype=np.float32) / 255.
 
-Y_data = one_hot(Y_data, 10)
+# Y_data = one_hot(Y_data, 10)
 trX, teX, trY, teY = train_test_split(X_data, Y_data, test_size=.2, shuffle=True)
 # data_check(trY)
 # data_check(teY)
-# model(trX, trY, teX, teY, epoches=100)
-predict()
+model(trX, trY, teX, teY, epoches=20)
+# predict()
