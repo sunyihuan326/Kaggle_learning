@@ -132,7 +132,7 @@ def model(trX, trY, teX, teY, lr=0.01, epoches=200, minibatch_size=64, drop_prob
     learning_rate = tf.train.exponential_decay(lr,
                                                global_step=global_step,
                                                decay_steps=10, decay_rate=0.9)
-    learning_rate = tf.maximum(learning_rate, .005)
+    learning_rate = tf.maximum(learning_rate, .001)
 
     with tf.variable_scope('loss_scope'):
         centerloss, centers_update_op = get_center_loss(fc2, Y, 0.5, 10)
@@ -140,7 +140,7 @@ def model(trX, trY, teX, teY, lr=0.01, epoches=200, minibatch_size=64, drop_prob
         # lambda则0.1-0.0001之间不等
         loss = tf.losses.sparse_softmax_cross_entropy(labels=Y, logits=ZL) + 0.05 * centerloss
     with tf.control_dependencies([centers_update_op]):
-        train_op = tf.train.MomentumOptimizer(0.001, 0.9).minimize(loss)
+        train_op = tf.train.MomentumOptimizer(learning_rate, 0.9).minimize(loss)
         # train_op = tf.train.AdamOptimizer(learning_rate).minimize(loss, global_step=global_step)
 
     predict_op = tf.argmax(ZL, 1, name='predict')
@@ -193,8 +193,8 @@ def predict():
         result.to_csv(root_dir + 'result.csv')
 
 
-# root_dir = 'F:/dataSets/kaggle/MNIST/'
-root_dir = 'C:/Users/syh03/Desktop/Kaggle/MNIST/data/'
+root_dir = 'F:/dataSets/kaggle/MNIST/'
+# root_dir = 'C:/Users/syh03/Desktop/Kaggle/MNIST/data/'
 train_dir = root_dir + 'train.csv'
 test_dir = root_dir + 'test.csv'
 
@@ -210,5 +210,5 @@ preX = np.array(pre_data.values, dtype=np.float32) / 255.
 trX, teX, trY, teY = train_test_split(X_data, Y_data, test_size=.2, shuffle=True)
 # data_check(trY)
 # data_check(teY)
-model(trX, trY, teX, teY, epoches=20)
-# predict()
+# model(trX, trY, teX, teY, epoches=200)
+predict()
