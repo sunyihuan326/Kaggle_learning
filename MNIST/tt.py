@@ -1,4 +1,3 @@
-
 # coding:utf-8
 '''
 Created on 2017/12/21.
@@ -6,8 +5,13 @@ Created on 2017/12/21.
 @author: chk01
 '''
 import tensorflow as tf
+import matplotlib.pyplot as plt
+import numpy as np
 
-
+_fc2 = np.array([[1, 2], [2, 3], [3, 4]])
+plt.scatter(_fc2[:, 0], _fc2[:, 1], c=[1, 2, 1],label=['1','2','3'])
+plt.show()
+assert 1==0
 ckpt = tf.train.get_checkpoint_state('save/')
 print(ckpt.model_checkpoint_path)
 saver = tf.train.import_meta_graph("save/model.ckpt.meta")
@@ -23,6 +27,7 @@ tf.train.AdamOptimizer()
 tf.nn.softmax_cross_entropy_with_logits()
 tf.nn.sigmoid_cross_entropy_with_logits()
 tf.gather()
+
 
 def get_center_loss(features, labels, alpha, num_classes):
     """获取center loss及center的更新op
@@ -72,8 +77,8 @@ with tf.control_dependencies([self.centers_update_op]):
     self.train_op = tf.train.MomentumOptimizer(0.001, 0.9).minimize(self.loss)
 
 
-# .meta文件保存了当前图结构
-#
-# .index文件保存了当前参数名
-#
-# .data文件保存了当前参数值
+    # .meta文件保存了当前图结构
+    #
+    # .index文件保存了当前参数名
+    #
+    # .data文件保存了当前参数值

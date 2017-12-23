@@ -166,6 +166,11 @@ def model(trX, trY, teX, teY, lr=0.01, epoches=200, minibatch_size=64, drop_prob
                 print("Cost after epoch %i: %f tr-acc: %f te-acc: %f" % (epoch, _loss, train_accuracy, test_accuracy))
         train_accuracy = accuracy.eval({X: trX[:2000], Y: trY[:2000], dp: 0.0})
         test_accuracy = accuracy.eval({X: teX[:2000], Y: teY[:2000], dp: 0.0})
+
+        # 修改网络倒数层为2，然后输出特征
+        # _fc3 = fc3.eval({X: teX[:2000], Y: teY[:2000], dp: 0.0})
+        # plt.scatter(_fc3[:, 0], _fc3[:, 1], c=teY[:2000])
+        # plt.show()
         print("Train Accuracy:", train_accuracy)
         print("Test Accuracy:", test_accuracy)
         saver.save(sess, "save/model.ckpt")
