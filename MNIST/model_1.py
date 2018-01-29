@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
+import scipy.io as scio
 
 
 def data_check(data):
@@ -36,26 +37,17 @@ def one_hot(y, classes):
     return np.eye(classes)[y]
 
 
-def random_mini_batches(X, Y, mini_batch_size=64):
-    m = X.shape[0]
-    mini_batches = []
-
-    permutation = list(np.random.permutation(m))
-    shuffled_X = X[permutation, :]
-    shuffled_Y = Y[permutation]
-
-    num_complete_minibatches = math.floor(m / mini_batch_size)
-    for k in range(0, num_complete_minibatches):
-        mini_batch_X = shuffled_X[k * mini_batch_size: k * mini_batch_size + mini_batch_size, :]
-        mini_batch_Y = shuffled_Y[k * mini_batch_size: k * mini_batch_size + mini_batch_size]
-        mini_batch = (mini_batch_X, mini_batch_Y)
-        mini_batches.append(mini_batch)
-    if m % mini_batch_size != 0:
-        mini_batch_X = shuffled_X[num_complete_minibatches * mini_batch_size: m, :]
-        mini_batch_Y = shuffled_Y[num_complete_minibatches * mini_batch_size: m]
-        mini_batch = (mini_batch_X, mini_batch_Y)
-        mini_batches.append(mini_batch)
-    return mini_batches
+def minibatches(X, Y, batch_size=64, shuffle=True):
+    assert len(X) == len(Y)
+    if shuffle:
+        indices = np.arange(len(X))
+        np.random.shuffle(indices)
+    for start_idx in range(0, len(X) - batch_size + 1, batch_size):
+        if shuffle:
+            excerpt = indices[start_idx:start_idx + batch_size]
+        else:
+            excerpt = slice(start_idx, start_idx + batch_size)
+        yield X[excerpt], Y[excerpt]
 
 
 def get_center_loss(features, labels, alpha, num_classes):
@@ -118,14 +110,20 @@ def model(trX, trY, teX, teY, lr=0.01, epoches=200, minibatch_size=64, drop_prob
     convZ = tf.contrib.layers.flatten(conv2)
 
     fc1 = tf.layers.dense(convZ, 256, activation=tf.nn.relu)
-    fc1 = tf.layers.batch_normalization(fc1)
-    fc1 = tf.layers.dropout(fc1, rate=dp, training=True)
+    # fc1 = tf.layers.batch_normalization(fc1)
+    # fc1 = tf.layers.dropout(fc1, rate=dp, training=True)
     #
     fc2 = tf.layers.dense(fc1, 128, activation=tf.nn.relu)
-    fc2 = tf.layers.batch_normalization(fc2)
-    fc2 = tf.layers.dropout(fc2, rate=dp, training=True)
+    # fc2 = tf.layers.batch_normalization(fc2)
+    # fc2 = tf.layers.dropout(fc2, rate=dp, training=True)
 
-    ZL = tf.layers.dense(fc2, 10, activation=None)
+    fc3 = tf.layers.dense(fc2, 2, activation=None, name='fc3')
+    print(fc3)
+
+    fc3_out = tf.nn.relu(fc3)
+    # fc3 = tf.layers.batch_normalization(fc3)
+    # fc3 = tf.layers.dropout(fc3, rate=dp, training=True)
+    ZL = tf.layers.dense(fc3_out, 10, activation=None)
 
     # loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=ZL, labels=Y))
 
@@ -141,7 +139,7 @@ def model(trX, trY, teX, teY, lr=0.01, epoches=200, minibatch_size=64, drop_prob
         loss = tf.losses.sparse_softmax_cross_entropy(labels=Y, logits=ZL) + 0.05 * centerloss
     with tf.control_dependencies([centers_update_op]):
         train_op = tf.train.MomentumOptimizer(learning_rate, 0.9).minimize(loss)
-        # train_op = tf.train.AdamOptimizer(learning_rate).minimize(loss, global_step=global_step)
+        # train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss, global_step=global_step)
 
     predict_op = tf.argmax(ZL, 1, name='predict')
     print(predict_op)
@@ -154,10 +152,8 @@ def model(trX, trY, teX, teY, lr=0.01, epoches=200, minibatch_size=64, drop_prob
     with tf.Session() as sess:
         sess.run(init)
         for epoch in range(epoches):
-            minibatches = random_mini_batches(trX, trY, minibatch_size)
 
-            for minibatch in minibatches:
-                minibatch_X, minibatch_Y = minibatch
+            for minibatch_X, minibatch_Y in minibatches(trX, trY, minibatch_size, shuffle=True):
                 __, _loss, _ = sess.run([add_global, loss, train_op],
                                         feed_dict={X: minibatch_X, Y: minibatch_Y, dp: drop_prob})
             if epoch % 5 == 0:
@@ -198,6 +194,44 @@ def predict():
         result.to_csv(root_dir + 'result.csv')
 
 
+def myfind(x, y):
+    return [a for a in range(len(y)) if y[a] == x]
+
+
+def draw_feature():
+    def _find(x, XList):
+        return [_i for _i in range(len(XList)) if XList[_i] == x]
+
+    tf.reset_default_graph()
+    # graph
+    saver = tf.train.import_meta_graph("save/model.ckpt.meta")
+    # value
+    # a = tf.train.NewCheckpointReader('save/model.ckpt.index')
+    # saver = tf.train.Saver()
+    with tf.Session() as sess:
+        saver.restore(sess, "save/model.ckpt")
+        graph = tf.get_default_graph()
+
+        fc3_op = graph.get_tensor_by_name("fc3/BiasAdd:0")
+        X = graph.get_tensor_by_name("Placeholder:0")
+        dp = graph.get_tensor_by_name("Placeholder_2:0")
+
+        feature = np.zeros([42000, 2])
+        for i in range(21):
+            fc3 = fc3_op.eval({X: X_data[2000 * i:2000 * i + 2000], dp: 0.0})
+            feature[2000 * i:2000 * i + 2000] = fc3
+        scio.savemat(root_dir + 'fc3', {"X": feature, "Y": Y_data})
+        for i in range(10):
+            idx = _find(i, Y_data)
+            color = [(1, 0.5, 0.8), (1, 0, 0), (0.5, 0, 0.25),
+                     (0, 0, 1), (0, 0, 0), (1, 0, 1), (1, 1, 0),
+                     (0, .5, 0), (0.5, .5, .5), (0, .5, 0.75)]
+
+            plt.scatter(feature[idx, 0], feature[idx, 1], c=color[i], label=str(i), s=10)
+        plt.legend(loc='upper right')
+        plt.show()
+
+
 root_dir = 'F:/dataSets/kaggle/MNIST/'
 # root_dir = 'C:/Users/syh03/Desktop/Kaggle/MNIST/data/'
 train_dir = root_dir + 'train.csv'
@@ -207,7 +241,7 @@ test_dir = root_dir + 'test.csv'
 data = pd.read_csv(train_dir)
 X_data = np.array(data.iloc[:, 1:].values, dtype=np.float32) / 255.
 Y_data = np.array(data.iloc[:, 0].values, dtype=np.int32)
-
+print(X_data.shape)
 pre_data = pd.read_csv(test_dir)
 preX = np.array(pre_data.values, dtype=np.float32) / 255.
 
@@ -215,5 +249,6 @@ preX = np.array(pre_data.values, dtype=np.float32) / 255.
 trX, teX, trY, teY = train_test_split(X_data, Y_data, test_size=.2, shuffle=True)
 # data_check(trY)
 # data_check(teY)
-# model(trX, trY, teX, teY, epoches=200)
-predict()
+model(trX, trY, teX, teY, epoches=200)
+# predict()
+# draw_feature()

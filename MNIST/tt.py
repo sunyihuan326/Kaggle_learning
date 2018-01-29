@@ -8,10 +8,52 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
 
-_fc2 = np.array([[1, 2], [2, 3], [3, 4]])
-plt.scatter(_fc2[:, 0], _fc2[:, 1], c=[1, 2, 1],label=['1','2','3'])
-plt.show()
+
+
+a = np.array([[1,2],[3,4]])
+sum0 = np.sum(a, axis=0)
+sum1 = np.sum(a, axis=1)
+
+print (sum0,sum1)
 assert 1==0
+
+
+print(plt.colors())
+def myfind(x, y):
+    return [a for a in range(len(y)) if y[a] == x]
+
+
+a = [1, 2, 3, 4, 4, 3, 2, 1]
+print(myfind(1, a))
+x = np.random.rand(50, 30)-.5
+
+# basic
+f1 = plt.figure(1)
+
+plt.subplot(211)
+plt.scatter(x[:, 1], x[:, 0])
+
+# with label
+plt.subplot(212)
+label = list(np.ones(20)) + list(2 * np.ones(15)) + list(3 * np.ones(15))
+label = np.array(label)
+print(label)
+print(label.shape)
+# cmap=plt.cm.Spectral
+plt.scatter(x[:, 1], x[:, 0], s=15.0 * label, c=label)
+# plt.show()
+
+# with legend
+f2 = plt.figure(2)
+idx_1 = range(20)
+p1 = plt.scatter(x[idx_1, 1], x[idx_1, 0],  c='m', label=str(1), s=30)
+idx_2 = range(20, 35)
+p2 = plt.scatter(x[idx_2, 1], x[idx_2, 0], marker='+', c='c', label='2', s=50)
+idx_3 = range(35, 50)
+p3 = plt.scatter(x[idx_3, 1], x[idx_3, 0], marker='o', c='r', label='3', s=15)
+# plt.legend(loc='upper right')
+plt.show()
+assert 1 == 0
 ckpt = tf.train.get_checkpoint_state('save/')
 print(ckpt.model_checkpoint_path)
 saver = tf.train.import_meta_graph("save/model.ckpt.meta")
