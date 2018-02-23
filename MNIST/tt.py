@@ -8,24 +8,23 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
 
-
-
-a = np.array([[1,2],[3,4]])
+a = np.array([[1, 2], [3, 4]])
 sum0 = np.sum(a, axis=0)
 sum1 = np.sum(a, axis=1)
 
-print (sum0,sum1)
-assert 1==0
-
+print(sum0, sum1)
+assert 1 == 0
 
 print(plt.colors())
+
+
 def myfind(x, y):
     return [a for a in range(len(y)) if y[a] == x]
 
 
 a = [1, 2, 3, 4, 4, 3, 2, 1]
 print(myfind(1, a))
-x = np.random.rand(50, 30)-.5
+x = np.random.rand(50, 30) - .5
 
 # basic
 f1 = plt.figure(1)
@@ -46,7 +45,7 @@ plt.scatter(x[:, 1], x[:, 0], s=15.0 * label, c=label)
 # with legend
 f2 = plt.figure(2)
 idx_1 = range(20)
-p1 = plt.scatter(x[idx_1, 1], x[idx_1, 0],  c='m', label=str(1), s=30)
+p1 = plt.scatter(x[idx_1, 1], x[idx_1, 0], c='m', label=str(1), s=30)
 idx_2 = range(20, 35)
 p2 = plt.scatter(x[idx_2, 1], x[idx_2, 0], marker='+', c='c', label='2', s=50)
 idx_3 = range(35, 50)
