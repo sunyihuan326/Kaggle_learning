@@ -35,7 +35,7 @@ import numpy as np
 tf_record_file = 'F:/dataSets/CASIA/HWDB1/train.tfrecord'
 capacity = 2000
 # capacity 32 must be bigger than min_after_dequeue 100.
-file_queue = tf.train.string_input_producer([tf_record_file], shuffle=True, capacity=capacity)
+file_queue = tf.train.string_input_producer([tf_record_file], shuffle=True, capacity=capacity,num_epochs=1)
 # print(tf.GraphKeys.QUEUE_RUNNERS)  # queue_runners
 # print(tf.get_default_graph().get_collection(name='queue_runners'))
 
@@ -53,16 +53,17 @@ image = tf.decode_raw(img_features['image_raw'], tf.float32)
 image = tf.reshape(image, [96, 96])
 label = tf.cast(img_features['label'], tf.int32)
 
-x_batch, y_batch = tf.train.shuffle_batch([image, label], batch_size=32, num_threads=30, capacity=capacity,
-                                          min_after_dequeue=1000)
+x_batch, y_batch = tf.train.shuffle_batch([image, label], batch_size=32, num_threads=2, capacity=250,
+                                          min_after_dequeue=200)
 
 with tf.Session() as sess:
+    sess.run(tf.local_variables_initializer())
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
     print(threads)
-    for i in range(100):
+    for i in range(200):
         print(i)
-        print(sess.run(y_batch))
+        # print(sess.run(y_batch))
     coord.request_stop()
     coord.join(threads)
     # if i ==99:
@@ -70,4 +71,4 @@ with tf.Session() as sess:
     # label = tf.cast(img_features['label'], tf.int32)
 
     # print(x_batch)
-    coord = tf.train
+    # coord = tf.train
